@@ -52,8 +52,13 @@ In order to use CutEr, you need the following programs:
 
         git clone -b z3-4.4.1 --depth 1 https://github.com/Z3Prover/z3.git
 
-  To install Z3, follow the instructions in its [GitHub
-  repository](https://github.com/Z3Prover/z3/).
+  For your convenience, we include here a list of commands to build and install the v4.4.1 Z3 release:
+
+        cd z3 ; python scripts/mk_make.py
+        cd build ; make
+        sudo make install
+
+  If this sequence of commands does not work for you, follow the instructions in Z3's [GitHub repository](https://github.com/Z3Prover/z3/).
   Also, make sure that Z3Py (Python Interface) is installed.
 
 Installation
@@ -134,7 +139,7 @@ but also a numeric argument `Depth` that denotes the depth of the search
 (i.e. roughly the number of branches that will be explored).  This depth
 can also be specified as an option of the `cuter` script:
 
-    ./cuter foo erl '[[1], [2]]' -d 42
+    ./cuter foo bar '[[1], [2]]' -d 42
 
 CutEr provides more API functions that also come with options that
 control the concolic execution of Erlang programs. These will be
