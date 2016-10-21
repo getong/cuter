@@ -6,6 +6,10 @@
 
 SRC  = src
 INCLUDE = include
+PROTOS = protobufs
+PROTOS_MSGS = $(PROTOS)/messages
+PROTOS_SRC = $(PROTOS)/src
+PROTOS_INCLUDE = $(PROTOS)/include
 EBIN = ebin
 PRIV = $(PWD)/priv
 TEST = test
@@ -17,12 +21,15 @@ LIB = $(PWD)/lib
 ERLC = @ERLC@
 MECK = $(realpath @MECK@)
 PROPER = $(realpath @PROPER@)
+GPB = $(realpath @GPB@)
+PROTOC-ERL = $(GPB)/bin/protoc-erl
+GPB_INCLUDE = $(GPB)/include
 
 ###----------------------------------------------------------------------
 ### Set Environment Variables
 ###----------------------------------------------------------------------
 
-export ERL_LIBS := $(PROPER):$(MECK):$$ERL_LIBS
+export ERL_LIBS := $(PROPER):$(MECK):$(GPB):$$ERL_LIBS
 
 ###----------------------------------------------------------------------
 ### Flags
@@ -33,8 +40,10 @@ DIALYZER_FLAGS = -Wunmatched_returns -Wunderspecs
 
 WARNS = +warn_exported_vars +warn_unused_import +warn_missing_spec #+warn_untyped_record
 WARNS_FTEST = +warn_exported_vars +warn_unused_import #+warn_missing_spec +warn_untyped_record
-ERLC_INCLUDE = -I $(INCLUDE)
+ERLC_INCLUDE = -I $(INCLUDE) -I $(PROTOS_INCLUDE)
+ERLC_INCLUDE_PROTOS = -I $(INCLUDE) -I $(PROTOS_INCLUDE) -I $(GPB_INCLUDE)
 ERLC_FLAGS = +debug_info $(WARNS) -Werror
+ERLC_FLAGS_PROTOS = +debug_info $(WARNS_FTEST) -Werror
 ERLC_FLAGS_FTEST = +debug_info $(WARNS_FTEST) -Werror
 ERLC_FLAGS_NO_DBG = $(WARNS) -Werror
 ERLC_MACROS = -DEBIN=\"$(PWD)/$(EBIN)\" -DPYTHON_PATH=\"@PYTHON_PATH@\" -DPRIV=\"$(PRIV)\"
@@ -68,6 +77,7 @@ SRC_MODULES = \
 	cuter_poller \
 	cuter_debug \
 	cuter_callgraph \
+	cuter_serial \
 	cerl_pmatch
 
 UTEST_MODULES = \
@@ -82,6 +92,7 @@ UTEST_MODULES = \
 	cuter_solver_tests \
 	cuter_erlang_tests \
 	cuter_types_tests \
+	cuter_serial_tests \
 	cuter_pp_tests \
 	types_and_specs \
 	types_and_specs2
@@ -102,6 +113,9 @@ PRIV_MODULES = \
 	cuter_solve_offline \
 	cuter_representation
 
+PROTOBUFS = \
+	erlang_term
+
 ###----------------------------------------------------------------------
 ### Targets
 ###----------------------------------------------------------------------
@@ -109,16 +123,24 @@ PRIV_MODULES = \
 ERL_DIRS = \
 	$(SRC) \
 	$(UTEST_SRC) \
-	$(FTEST_SRC)
+	$(FTEST_SRC) \
+	$(PROTOS_SRC)
+
+HRL_DIRS = \
+	$(INCLUDE) \
+	$(PROTOS_INCLUDE)
 
 TARGETS = \
+	protos_target \
 	cuter_target \
 	utest_target \
 	ftest_target
 
 vpath %.erl $(ERL_DIRS)
 
-vpath %.hrl $(INCLUDE)
+vpath %.hrl $(HRL_DIRS)
+
+vpath %.proto $(PROTOS_MSGS)
 
 default: cuter_target
 
@@ -128,11 +150,23 @@ test: utest ftest
 
 all: $(TARGETS) dialyzer utest ftest
 
-cuter_target: $(SRC_MODULES:%=$(EBIN)/%.beam)
+protos_target: $(PROTOBUFS:%=$(PROTOS_SRC)/%.erl)
+
+cuter_target: protos_target $(SRC_MODULES:%=$(EBIN)/%.beam) $(PROTOBUFS:%=$(EBIN)/%.beam)
 
 utest_target: $(UTEST_MODULES:%=$(UTEST_EBIN)/%.beam)
 
 ftest_target: $(FTEST_MODULES:%=$(FTEST_EBIN)/%.beam)
+
+$(PROTOS_INCLUDE)/%.hrl: $(PROTOS_SRC)/%.erl
+
+$(PROTOS_SRC)/%.erl: %.proto
+	@echo "PROTOC-ERL $(notdir  $<)"
+	@$(PROTOC-ERL) -I $(PROTOS_MSGS) -o-erl $(PROTOS_SRC) -o-hrl $(PROTOS_INCLUDE) $(notdir  $<)
+
+$(PROTOBUFS:%=$(EBIN)/%.beam): $(PROTOBUFS:%=$(PROTOS_SRC)/%.erl)
+	@echo "ERLC $<"
+	@$(ERLC) $(ERLC_INCLUDE_PROTOS) $(ERLC_FLAGS_PROTOS) $(ERLC_MACROS) -o $(EBIN) $<
 
 $(EBIN)/%.beam: %.erl
 	@echo "ERLC $<"
@@ -165,7 +199,7 @@ dialyzer: cuter_target .cuter_plt
 
 -include .depend
 
-depend: cleandep $(SRC_MODULES:%=%.dep) $(HRL_FILES:%=%.hrl)
+depend: cleandep $(SRC_MODULES:%=%.dep) $(HRL_FILES:%=%.hrl) $(PROTOBUFS:%=$(PROTOS_SRC)/%.erl)
 	@echo ""
 	@echo "To build CutEr, execute:"
 	@echo "  make"
@@ -173,16 +207,19 @@ depend: cleandep $(SRC_MODULES:%=%.dep) $(HRL_FILES:%=%.hrl)
 %.dep: %.erl
 	@$(ERLC) $(ERLC_INCLUDE) -M -MT $(patsubst $(SRC)/%.erl,$(EBIN)/%.beam,$<) $< >> .depend
 
-clean:
+clean: cleandep
 	$(RM) $(EBIN)/*.beam
 
 clean_tests:
 	$(RM) $(UTEST_EBIN)/*.beam $(FTEST_EBIN)/*.beam
 
-cleandep:
+cleandep: cleanprotos
 	$(RM) .depend
 
 cleangen: cleandep
 	$(RM) .cuter_plt
 
-distclean: clean clean_tests cleangen
+cleanprotos:
+	$(RM) $(PROTOBUFS:%=$(EBIN)/%.beam) $(PROTOS_SRC)/*.erl $(PROTOS_INCLUDE)/*.hrl
+
+distclean: clean clean_tests cleangen cleanprotos
