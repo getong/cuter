@@ -6,7 +6,7 @@
 
 -include("include/cuter_macros.hrl").
 -include("include/cuter_types.hrl").
--include("protobufs/include/erlang_term.hrl").
+-include("include/erlang_term.hrl").
 
 -type erlang_term() :: #'ErlangTerm'{}.
 -type supported_term() :: atom() | bitstring() | pid() | reference() | [any()]
