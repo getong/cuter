@@ -192,7 +192,7 @@ ftest: $(TARGETS)
 	@(./$(TEST)/functional_test)
 
 dialyzer: cuter_target .cuter_plt
-	dialyzer --plt .cuter_plt $(DIALYZER_FLAGS) $(EBIN)/*.beam
+	dialyzer --plt .cuter_plt $(DIALYZER_FLAGS) $(SRC_MODULES:%=$(EBIN)/%.beam)
 
 .cuter_plt:
 	dialyzer --build_plt --output_plt $@ --apps $(DIALYZER_APPS)
